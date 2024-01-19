@@ -1,6 +1,6 @@
 "use client"
 
-import LinePlot from "@/components/line-plot"
+import LinePlotAlt from "@/components/line-plot-alt"
 
 export default function Home() {
   const data = [
@@ -10,10 +10,10 @@ export default function Home() {
   ]
 
   return (
-    <main className="m-auto max-w-[800px]">
+    <main className="m-auto max-w-[800px] p-3">
       <h1 className="mb-3 mt-6 text-center">D3 graphs</h1>
       <h2>Line plot</h2>
-      <LinePlot data={data} />
+      <LinePlotAlt data={data} />
     </main>
   )
 }
