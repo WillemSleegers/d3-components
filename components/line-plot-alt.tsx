@@ -1,6 +1,6 @@
 import * as d3 from "d3"
 import { create } from "domain"
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, useLayoutEffect } from "react"
 
 type LinePlotProps = {
   data: { x: number; y: number }[]
@@ -24,7 +24,9 @@ export default function LinePlotAlt({
   const parentRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  const [animate, setAnimate] = useState(true)
+  const [width, setWidth] = useState<number | undefined>(0)
+  const [height, setHeight] = useState<number | undefined>(0)
 
   const createGraph = () => {
     const valuesX = data.map((datum) => datum.x)
@@ -33,84 +35,107 @@ export default function LinePlotAlt({
     const valuesY = data.map((datum) => datum.y)
     const domainY = d3.extent(valuesY) as number[]
 
-    const x = d3
-      .scaleLinear()
-      .domain(domainX)
-      .range([marginLeft, dimensions.width - marginRight])
+    if (width && height) {
+      const x = d3
+        .scaleLinear()
+        .domain(domainX)
+        .range([marginLeft, width - marginRight])
 
-    const y = d3
-      .scaleLinear()
-      .domain(domainY)
-      .range([dimensions.height - marginBottom, marginTop])
+      const y = d3
+        .scaleLinear()
+        .domain(domainY)
+        .range([height - marginBottom, marginTop])
 
-    if (svgRef.current) {
-      const svg = d3
-        .select(svgRef.current)
-        .attr("width", dimensions.width)
-        .attr("height", dimensions.height)
+      d3.select(svgRef.current).selectAll("*").remove()
 
-      // Set axes
-      const xAxis = d3.axisBottom(x)
-      const yAxis = d3.axisLeft(y)
+      if (svgRef.current) {
+        const svg = d3
+          .select(svgRef.current)
+          .attr("width", width)
+          .attr("height", height)
 
-      svg
-        .append("g")
-        .call(xAxis)
-        .attr("class", "x-axis")
-        .attr("transform", `translate(0, ${dimensions.height - marginBottom})`)
+        // Set axes
+        const xAxis = d3.axisBottom(x)
+        const yAxis = d3.axisLeft(y)
 
-      svg
-        .append("g")
-        .call(yAxis)
-        .attr("class", "y-axis")
-        .attr("transform", `translate(${marginLeft}, 0)`)
+        svg
+          .append("g")
+          .call(xAxis)
+          .attr("class", "x-axis")
+          .attr("transform", `translate(0, ${height - marginBottom})`)
 
-      // Add line
-      const line = d3
-        .line<{ x: number; y: number }>()
-        .x((d) => x(d.x))
-        .y((d) => y(d.y))
+        svg
+          .append("g")
+          .call(yAxis)
+          .attr("class", "y-axis")
+          .attr("transform", `translate(${marginLeft}, 0)`)
 
-      svg
-        .selectAll(".line")
-        .data([data])
-        .join("path")
-        .attr("d", (d) => line(d))
-        .attr("fill", "none")
-        .attr("stroke", "black")
+        // Add line
+        const line = d3
+          .line<{ x: number; y: number }>()
+          .x((d) => x(d.x))
+          .y((d) => y(d.y))
 
-      // Add circles
-      svg
-        .append("g")
-        .selectAll("dot")
-        .data(data)
-        .join("circle")
-        .attr("cx", (d) => x(d.x))
-        .attr("cy", (d) => y(d.y))
-        .attr("r", 5)
+        svg
+          .selectAll(".line")
+          .data([data])
+          .join("path")
+          .attr("d", (d) => line(d))
+          .attr("fill", "none")
+          .attr("stroke", "black")
+          .attr("class", "line1")
+
+        // Add circles
+        svg
+          .append("g")
+          .selectAll("dot")
+          .data(data)
+          .join("circle")
+          .attr("cx", (d) => x(d.x))
+          .attr("cy", (d) => y(d.y))
+          .attr("r", 5)
+      }
     }
   }
 
-  const updateGraph = () => {
-    if (svgRef.current) {
-      d3.select(svgRef.current).selectAll("*").remove()
+  const animateGraph = () => {
+    const points = d3.selectAll("circle")
+    const line = d3.select<SVGGeometryElement, "path">(".line1")
+    const lineNode = line.node()
 
-      createGraph()
+    console.log(lineNode && points)
+
+    if (lineNode && points) {
+      const pathLength = lineNode.getTotalLength()
+
+      points.attr("r", 0)
+
+      line
+        .attr("stroke-dasharray", pathLength + " " + pathLength)
+        .attr("stroke-dashoffset", pathLength)
+        .transition()
+        .duration(1500)
+        .attr("stroke-dashoffset", 0)
+        .on("end", () => {
+          points.transition().duration(1500).attr("r", 5)
+        })
+
+      setAnimate(false)
+    }
+  }
+
+  const getContainerSize = () => {
+    if (parentRef.current) {
+      setWidth(parentRef.current.offsetWidth)
+      setHeight(parentRef.current.offsetHeight)
     }
   }
 
   useEffect(() => {
-    const getDimensions = () => ({
-      width: parentRef.current!.offsetWidth,
-      height: parentRef.current!.offsetHeight,
-    })
+    getContainerSize()
 
     const handleResize = () => {
-      setDimensions(getDimensions())
-    }
-
-    if (parentRef.current!) {
-      setDimensions(getDimensions())
+      getContainerSize()
     }
 
     window.addEventListener("resize", handleResize)
@@ -118,15 +143,13 @@ export default function LinePlotAlt({
     return () => {
       window.removeEventListener("resize", handleResize)
     }
-  }, [parentRef])
-
-  useEffect(() => {
-    updateGraph()
-  }, [dimensions])
-
-  useEffect(() => {
-    createGraph()
   }, [])
+
+  useLayoutEffect(() => {
+    createGraph()
+
+    if (animate) animateGraph()
+  }, [width, height])
 
   return (
     <div
