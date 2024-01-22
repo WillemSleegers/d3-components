@@ -1,13 +1,14 @@
 "use client"
 
 import LinePlotAlt from "@/components/line-plot-alt"
+import animals from "../assets/data/animal-welfare.json"
 
 export default function Home() {
-  const data = [
-    { x: 1, y: 1 },
-    { x: 2, y: 2 },
-    { x: 3, y: 2 },
-  ]
+  const data = animals
+    .filter((e) => e.location == "World")
+    .map((e) => {
+      return { x: e.year, y: e.animals }
+    })
 
   return (
     <main className="m-auto max-w-[800px] p-3">

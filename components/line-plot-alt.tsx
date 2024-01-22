@@ -1,6 +1,5 @@
 import * as d3 from "d3"
-import { create } from "domain"
-import { useRef, useEffect, useState, useLayoutEffect } from "react"
+import { useRef, useEffect, useState } from "react"
 
 type LinePlotProps = {
   data: { x: number; y: number }[]
@@ -19,7 +18,7 @@ export default function LinePlotAlt({
   marginTop = 20,
   marginRight = 20,
   marginBottom = 30,
-  marginLeft = 40,
+  marginLeft = 100,
 }: LinePlotProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -28,7 +27,7 @@ export default function LinePlotAlt({
   const [width, setWidth] = useState<number | undefined>(0)
   const [height, setHeight] = useState<number | undefined>(0)
 
-  const createGraph = () => {
+  const drawGraph = () => {
     const valuesX = data.map((datum) => datum.x)
     const domainX = d3.extent(valuesX) as number[]
 
@@ -71,56 +70,86 @@ export default function LinePlotAlt({
           .attr("transform", `translate(${marginLeft}, 0)`)
 
         // Add line
-        const line = d3
+        const lineGenerator = d3
           .line<{ x: number; y: number }>()
           .x((d) => x(d.x))
           .y((d) => y(d.y))
 
-        svg
+        const line = svg
           .selectAll(".line")
           .data([data])
           .join("path")
-          .attr("d", (d) => line(d))
+          .attr("d", (d) => lineGenerator(d))
           .attr("fill", "none")
-          .attr("stroke", "black")
-          .attr("class", "line1")
 
         // Add circles
-        svg
+        const circles = svg
           .append("g")
           .selectAll("dot")
           .data(data)
           .join("circle")
           .attr("cx", (d) => x(d.x))
           .attr("cy", (d) => y(d.y))
-          .attr("r", 5)
+
+        if (animate) {
+          const lineNode = line.node()
+
+          if (lineNode instanceof SVGPathElement) {
+            const pathLength = lineNode.getTotalLength()
+            console.log(pathLength)
+
+            circles
+              .attr("r", 0)
+              .transition()
+              .duration(250)
+              .delay((d, i) => i * 20)
+              .attr("r", 2)
+              .on("end", () => {
+                line
+                  .attr("stroke", "black")
+                  .attr("stroke-dasharray", pathLength + " " + pathLength)
+                  .attr("stroke-dashoffset", pathLength)
+                  .transition()
+                  .duration(1500)
+                  .attr("stroke-dashoffset", 0)
+              })
+
+            setAnimate(false)
+          }
+        } else {
+          circles.attr("r", 2)
+          line.attr("stroke", "black")
+        }
+
+        // Add tooltip
+        const tooltip = d3
+          .select("#tooltip")
+          .style("position", "absolute")
+          .style("visibility", "hidden")
+          .style("background-color", "red")
+          .html("I'm a tooltip written in HTML")
+
+        svg
+          .selectAll("circle")
+          .on("mouseover", function () {
+            return tooltip
+              .style("top", d3.select(this).attr("cy") + "px")
+              .style("left", d3.select(this).attr("cx") + "px")
+              .style("visibility", "visible")
+          })
+          .on("mousemove", function () {
+            console.log(d3.select(this).attr("cy"))
+            return tooltip
+              .style("top", d3.select(this).attr("cy") + "px")
+              .style("left", d3.select(this).attr("cx") + "px")
+          })
+          .on("mouseout", function () {
+            return tooltip
+              .style("top", d3.select(this).attr("cy") + "px")
+              .style("left", d3.select(this).attr("cx") + "px")
+              .style("visibility", "hidden")
+          })
       }
-    }
-  }
-
-  const animateGraph = () => {
-    const points = d3.selectAll("circle")
-    const line = d3.select<SVGGeometryElement, "path">(".line1")
-    const lineNode = line.node()
-
-    console.log(lineNode && points)
-
-    if (lineNode && points) {
-      const pathLength = lineNode.getTotalLength()
-
-      points.attr("r", 0)
-
-      line
-        .attr("stroke-dasharray", pathLength + " " + pathLength)
-        .attr("stroke-dashoffset", pathLength)
-        .transition()
-        .duration(1500)
-        .attr("stroke-dashoffset", 0)
-        .on("end", () => {
-          points.transition().duration(1500).attr("r", 5)
-        })
-
-      setAnimate(false)
     }
   }
 
@@ -145,10 +174,8 @@ export default function LinePlotAlt({
     }
   }, [])
 
-  useLayoutEffect(() => {
-    createGraph()
-
-    if (animate) animateGraph()
+  useEffect(() => {
+    drawGraph()
   }, [width, height])
 
   return (
@@ -157,6 +184,7 @@ export default function LinePlotAlt({
       style={{ width: containerWidth, height: containerHeight }}
     >
       <svg ref={svgRef}></svg>
+      <div id="tooltip"></div>
     </div>
   )
 }
