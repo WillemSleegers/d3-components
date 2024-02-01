@@ -1,8 +1,8 @@
 import * as d3 from "d3"
 import { useRef, useEffect, useState } from "react"
 
-type LinePlotProps = {
-  data: { x: number; y: number }[]
+type BarPlotProps = {
+  data: { x: string; y: number }[]
   containerWidth?: number | string
   containerHeight?: number
   marginTop?: number
@@ -11,7 +11,7 @@ type LinePlotProps = {
   marginLeft?: number
 }
 
-export default function LinePlotAlt({
+export default function BarPlot({
   data,
   containerWidth = "100%",
   containerHeight = 400,
@@ -19,7 +19,7 @@ export default function LinePlotAlt({
   marginRight = 20,
   marginBottom = 30,
   marginLeft = 100,
-}: LinePlotProps) {
+}: BarPlotProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -28,21 +28,19 @@ export default function LinePlotAlt({
   const [height, setHeight] = useState<number | undefined>(0)
 
   const drawGraph = () => {
-    const valuesX = data.map((datum) => datum.x)
-    const domainX = d3.extent(valuesX) as number[]
-
-    const valuesY = data.map((datum) => datum.y)
-    const domainY = d3.extent(valuesY) as number[]
-
     if (width && height) {
       const x = d3
-        .scaleLinear()
-        .domain(domainX)
+        .scaleBand()
+        .domain(data.map((datum) => datum.x))
         .range([marginLeft, width - marginRight])
+        .padding(0.1)
+
+      const yMin = 0
+      const yMax = d3.max(data, (d) => d.y)
 
       const y = d3
         .scaleLinear()
-        .domain(domainY)
+        .domain([yMin, yMax!])
         .range([height - marginBottom, marginTop])
 
       d3.select(svgRef.current).selectAll("*").remove()
@@ -57,68 +55,40 @@ export default function LinePlotAlt({
         const xAxis = d3.axisBottom(x)
         const yAxis = d3.axisLeft(y)
 
+        // Add the x-axis and label.
         svg
           .append("g")
-          .call(xAxis)
-          .attr("class", "x-axis")
-          .attr("transform", `translate(0, ${height - marginBottom})`)
+          .attr("transform", `translate(0,${height - marginBottom})`)
+          .call(d3.axisBottom(x).tickSizeOuter(0))
 
         svg
           .append("g")
-          .call(yAxis)
-          .attr("class", "y-axis")
           .attr("transform", `translate(${marginLeft}, 0)`)
+          .call(d3.axisLeft(y))
+          .call((g) => g.select(".domain").remove())
+          .call((g) =>
+            g
+              .append("text")
+              .attr("x", -marginLeft)
+              .attr("y", 10)
+              .attr("fill", "currentColor")
+              .attr("text-anchor", "start"),
+          )
 
-        // Add line
-        const lineGenerator = d3
-          .line<{ x: number; y: number }>()
-          .x((d) => x(d.x))
-          .y((d) => y(d.y))
-
-        const line = svg
-          .selectAll(".line")
-          .data([data])
-          .join("path")
-          .attr("d", (d) => lineGenerator(d))
-          .attr("fill", "none")
-
-        // Add circles
-        const circles = svg
+        // Add a rect for each bar.
+        svg
           .append("g")
-          .selectAll("dot")
+          .attr("fill", "steelblue")
+          .selectAll()
           .data(data)
-          .join("circle")
-          .attr("cx", (d) => x(d.x))
-          .attr("cy", (d) => y(d.y))
+          .join("rect")
+          .attr("x", (d) => x(d.x)!)
+          .attr("y", (d) => y(d.y))
+          .attr("height", (d) => y(0) - y(d.y))
+          .attr("width", x.bandwidth())
 
         if (animate) {
-          const lineNode = line.node()
-
-          if (lineNode instanceof SVGPathElement) {
-            const pathLength = lineNode.getTotalLength()
-            console.log(pathLength)
-
-            circles
-              .attr("r", 0)
-              .transition()
-              .duration(250)
-              .delay((d, i) => i * 20)
-              .attr("r", 2)
-              .on("end", () => {
-                line
-                  .attr("stroke", "black")
-                  .attr("stroke-dasharray", pathLength + " " + pathLength)
-                  .attr("stroke-dashoffset", pathLength)
-                  .transition()
-                  .duration(1500)
-                  .attr("stroke-dashoffset", 0)
-              })
-
-            setAnimate(false)
-          }
         } else {
-          circles.attr("r", 2)
-          line.attr("stroke", "black")
         }
 
         // Add tooltip
