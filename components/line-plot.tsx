@@ -1,5 +1,5 @@
 import * as d3 from "d3"
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, MouseEvent } from "react"
 
 type LinePlotProps = {
   data: { x: number; y: number }[]
@@ -83,6 +83,9 @@ export default function LinePlot({
           .attr("fill", "none")
 
         // Add circles
+        // Add tooltip
+        const tooltipDiv = d3.select("#line-tooltip")
+
         const circles = svg
           .append("g")
           .selectAll("dot")
@@ -90,13 +93,13 @@ export default function LinePlot({
           .join("circle")
           .attr("cx", (d) => x(d.x))
           .attr("cy", (d) => y(d.y))
+          .call(tooltip, tooltipDiv)
 
         if (animate) {
           const lineNode = line.node()
 
           if (lineNode instanceof SVGPathElement) {
             const pathLength = lineNode.getTotalLength()
-            console.log(pathLength)
 
             circles
               .attr("r", 0)
@@ -120,35 +123,6 @@ export default function LinePlot({
           circles.attr("r", 2)
           line.attr("stroke", "black")
         }
-
-        // Add tooltip
-        const tooltip = d3
-          .select("#tooltip")
-          .style("position", "absolute")
-          .style("visibility", "hidden")
-          .style("background-color", "red")
-          .html("I'm a tooltip written in HTML")
-
-        svg
-          .selectAll("circle")
-          .on("mouseover", function () {
-            return tooltip
-              .style("top", d3.select(this).attr("cy") + "px")
-              .style("left", d3.select(this).attr("cx") + "px")
-              .style("visibility", "visible")
-          })
-          .on("mousemove", function () {
-            console.log(d3.select(this).attr("cy"))
-            return tooltip
-              .style("top", d3.select(this).attr("cy") + "px")
-              .style("left", d3.select(this).attr("cx") + "px")
-          })
-          .on("mouseout", function () {
-            return tooltip
-              .style("top", d3.select(this).attr("cy") + "px")
-              .style("left", d3.select(this).attr("cx") + "px")
-              .style("visibility", "hidden")
-          })
       }
     }
   }
@@ -158,6 +132,79 @@ export default function LinePlot({
       setWidth(parentRef.current.offsetWidth)
       setHeight(parentRef.current.offsetHeight)
     }
+  }
+
+  const tooltip = (selectionGroup, tooltipDiv) => {
+    selectionGroup.each(function () {
+      d3.select(this)
+        .on("mouseover.tooltip", handleMouseover)
+        .on("mousemove.tooltip", handleMousemove)
+        .on("mouseleave.tooltip", handleMouseleave)
+    })
+
+    function handleMouseover() {
+      showTooltip()
+      setContents(d3.select(this).datum(), tooltipDiv)
+    }
+
+    function handleMousemove(event: MouseEvent) {
+      const [mouseX, mouseY] = d3.pointer(event)
+      setPosition(mouseX - marginLeft, mouseY)
+    }
+
+    function handleMouseleave() {
+      hideTooltip()
+    }
+
+    function showTooltip() {
+      tooltipDiv.style("display", "block")
+    }
+
+    function hideTooltip() {
+      tooltipDiv.style("display", "none")
+    }
+
+    function setPosition(mouseX: number, mouseY: number) {
+      const MOUSE_POS_OFFSET = 8
+
+      if (height && width) {
+        tooltipDiv
+          .style(
+            "top",
+            mouseY < height / 2 ? `${mouseY + MOUSE_POS_OFFSET}px` : "initial",
+          )
+          .style(
+            "right",
+            mouseX > width / 2
+              ? `${width - mouseX - marginLeft + MOUSE_POS_OFFSET}px`
+              : "initial",
+          )
+          .style(
+            "bottom",
+            mouseY > height / 2
+              ? `${height - mouseY + MOUSE_POS_OFFSET}px`
+              : "initial",
+          )
+          .style(
+            "left",
+            mouseX < width / 2
+              ? `${mouseX + MOUSE_POS_OFFSET + marginLeft}px`
+              : "initial",
+          )
+      }
+    }
+  }
+
+  function setContents(
+    datum: { x: number; y: number },
+    tooltipDiv: d3.Selection<d3.BaseType, unknown, d3.BaseType, unknown>,
+  ) {
+    tooltipDiv
+      .selectAll("p")
+      .data(Object.entries(datum))
+      .join("p")
+      .filter(([key, value]) => value !== null && value !== undefined)
+      .html(([key, value]) => `<strong>${key}</strong>: ` + value)
   }
 
   useEffect(() => {
@@ -182,9 +229,13 @@ export default function LinePlot({
     <div
       ref={parentRef}
       style={{ width: containerWidth, height: containerHeight }}
+      className="relative"
     >
       <svg ref={svgRef}></svg>
-      <div id="tooltip"></div>
+      <div
+        id="line-tooltip"
+        className="absolute box-border w-40 rounded border bg-gray-50 p-1"
+      ></div>
     </div>
   )
 }

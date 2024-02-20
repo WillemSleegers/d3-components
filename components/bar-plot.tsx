@@ -93,11 +93,11 @@ export default function BarPlot({
 
         // Add tooltip
         const tooltip = d3
-          .select("#tooltip")
+          .select("#bar-tooltip")
           .style("position", "absolute")
           .style("visibility", "hidden")
           .style("background-color", "red")
-          .html("I'm a tooltip written in HTML")
+          .html("I'm a tooltip written in HTML test")
 
         svg
           .selectAll("circle")
@@ -154,7 +154,7 @@ export default function BarPlot({
       style={{ width: containerWidth, height: containerHeight }}
     >
       <svg ref={svgRef}></svg>
-      <div id="tooltip"></div>
+      <div id="bar-tooltip"></div>
     </div>
   )
 }
