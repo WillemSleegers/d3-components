@@ -53,6 +53,42 @@ export default function LinePlot({
           .attr("width", width)
           .attr("height", height)
 
+        svg.on("mousemove.crosshair", (e) => {
+          const [mouseX, mouseY] = d3.pointer(event)
+
+          // Remove lines
+          d3.select(svgRef.current).select(".crosshair-x").remove()
+          d3.select(svgRef.current).select(".crosshair-y").remove()
+
+          if (
+            mouseX > marginLeft &&
+            mouseX < width - marginRight &&
+            mouseY > marginTop &&
+            mouseY < height - marginBottom
+          ) {
+            // Add lines
+            svg
+              .append("line")
+              .style("stroke", "lightgray")
+
+              .attr("class", "crosshair-x")
+              .attr("y1", 0 + marginTop)
+              .attr("y2", height - marginBottom)
+              .attr("x1", mouseX)
+              .attr("x2", mouseX)
+
+            svg
+              .append("line")
+              .style("stroke", "lightgray")
+
+              .attr("class", "crosshair-y")
+              .attr("y1", mouseY)
+              .attr("y2", mouseY)
+              .attr("x1", 0 + marginLeft)
+              .attr("x2", width - marginRight)
+          }
+        })
+
         // Set axes
         const xAxis = d3.axisBottom(x)
         const yAxis = d3.axisLeft(y)
@@ -82,10 +118,10 @@ export default function LinePlot({
           .attr("d", (d) => lineGenerator(d))
           .attr("fill", "none")
 
-        // Add circles
         // Add tooltip
         const tooltipDiv = d3.select("#line-tooltip")
 
+        // Add circles
         const circles = svg
           .append("g")
           .selectAll("dot")
@@ -134,18 +170,29 @@ export default function LinePlot({
     }
   }
 
-  const tooltip = (selectionGroup, tooltipDiv) => {
-    selectionGroup.each(function () {
-      d3.select(this)
-        .on("mouseover.tooltip", handleMouseover)
+  const tooltip = (
+    selectionGroup: d3.Selection<
+      d3.BaseType | SVGCircleElement,
+      {
+        x: number
+        y: number
+      },
+      SVGGElement,
+      unknown
+    >,
+    tooltipDiv: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
+  ) => {
+    selectionGroup.each((_d, i, nodes) => {
+      d3.select(nodes[i])
+        .on("mouseover.tooltip", () => {
+          showTooltip()
+
+          const datum = d3.select(nodes[i]).datum() as { x: number; y: number }
+          setContents(datum, tooltipDiv)
+        })
         .on("mousemove.tooltip", handleMousemove)
         .on("mouseleave.tooltip", handleMouseleave)
     })
-
-    function handleMouseover() {
-      showTooltip()
-      setContents(d3.select(this).datum(), tooltipDiv)
-    }
 
     function handleMousemove(event: MouseEvent) {
       const [mouseX, mouseY] = d3.pointer(event)
