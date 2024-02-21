@@ -11,7 +11,7 @@ type LinePlotProps = {
   marginLeft?: number
 }
 
-export default function LinePlot({
+const LinePlot = ({
   data,
   containerWidth = "100%",
   containerHeight = 400,
@@ -19,7 +19,7 @@ export default function LinePlot({
   marginRight = 20,
   marginBottom = 30,
   marginLeft = 100,
-}: LinePlotProps) {
+}: LinePlotProps) => {
   const parentRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -286,3 +286,5 @@ export default function LinePlot({
     </div>
   )
 }
+
+export default LinePlot
