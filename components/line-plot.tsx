@@ -48,46 +48,10 @@ const LinePlot = ({
       d3.select(svgRef.current).selectAll("*").remove()
 
       if (svgRef.current) {
-        const svg = d3
-          .select(svgRef.current)
-          .attr("width", width)
-          .attr("height", height)
+        const svg = d3.select(svgRef.current)
 
-        svg.on("mousemove.crosshair", (e) => {
-          const [mouseX, mouseY] = d3.pointer(event)
-
-          // Remove lines
-          d3.select(svgRef.current).select(".crosshair-x").remove()
-          d3.select(svgRef.current).select(".crosshair-y").remove()
-
-          if (
-            mouseX > marginLeft &&
-            mouseX < width - marginRight &&
-            mouseY > marginTop &&
-            mouseY < height - marginBottom
-          ) {
-            // Add lines
-            svg
-              .append("line")
-              .style("stroke", "lightgray")
-
-              .attr("class", "crosshair-x")
-              .attr("y1", 0 + marginTop)
-              .attr("y2", height - marginBottom)
-              .attr("x1", mouseX)
-              .attr("x2", mouseX)
-
-            svg
-              .append("line")
-              .style("stroke", "lightgray")
-
-              .attr("class", "crosshair-y")
-              .attr("y1", mouseY)
-              .attr("y2", mouseY)
-              .attr("x1", 0 + marginLeft)
-              .attr("x2", width - marginRight)
-          }
-        })
+        // Set graph size
+        svg.attr("width", width).attr("height", height)
 
         // Set axes
         const xAxis = d3.axisBottom(x)
@@ -104,6 +68,34 @@ const LinePlot = ({
           .call(yAxis)
           .attr("class", "y-axis")
           .attr("transform", `translate(${marginLeft}, 0)`)
+
+        // Create the grid.
+        svg
+          .append("g")
+          .attr("stroke", "currentColor")
+          .attr("stroke-opacity", 0.1)
+          .call((g) =>
+            g
+              .append("g")
+              .selectAll("line")
+              .data(x.ticks())
+              .join("line")
+              .attr("x1", (d) => 0.5 + x(d))
+              .attr("x2", (d) => 0.5 + x(d))
+              .attr("y1", marginTop)
+              .attr("y2", height - marginBottom),
+          )
+          .call((g) =>
+            g
+              .append("g")
+              .selectAll("line")
+              .data(y.ticks())
+              .join("line")
+              .attr("y1", (d) => 0.5 + y(d))
+              .attr("y2", (d) => 0.5 + y(d))
+              .attr("x1", marginLeft)
+              .attr("x2", width - marginRight),
+          )
 
         // Add line
         const lineGenerator = d3
@@ -130,6 +122,45 @@ const LinePlot = ({
           .attr("cx", (d) => x(d.x))
           .attr("cy", (d) => y(d.y))
           .call(tooltip, tooltipDiv)
+
+        // Add crosshairs
+        svg.on("mousemove.crosshair", () => {
+          const [mouseX, mouseY] = d3.pointer(event)
+
+          // Remove lines
+          svg.select(".crosshair-x").remove()
+          svg.select(".crosshair-y").remove()
+
+          if (
+            mouseX > marginLeft &&
+            mouseX < width - marginRight &&
+            mouseY > marginTop &&
+            mouseY < height - marginBottom
+          ) {
+            // Add lines
+            svg
+              .append("line")
+              .style("stroke", "black")
+              .attr("stroke-opacity", 0.1)
+              .lower() // Make sure the line appears below other elements
+              .attr("class", "crosshair-x")
+              .attr("y1", 0 + marginTop)
+              .attr("y2", height - marginBottom)
+              .attr("x1", mouseX)
+              .attr("x2", mouseX)
+
+            svg
+              .append("line")
+              .style("stroke", "black")
+              .attr("stroke-opacity", 0.1)
+              .lower() // Make sure the line appears below other elements
+              .attr("class", "crosshair-y")
+              .attr("y1", mouseY)
+              .attr("y2", mouseY)
+              .attr("x1", 0 + marginLeft)
+              .attr("x2", width - marginRight)
+          }
+        })
 
         if (animate) {
           const lineNode = line.node()
@@ -185,6 +216,7 @@ const LinePlot = ({
     selectionGroup.each((_d, i, nodes) => {
       d3.select(nodes[i])
         .on("mouseover.tooltip", () => {
+          console.log("tooltip mouseover")
           showTooltip()
 
           const datum = d3.select(nodes[i]).datum() as { x: number; y: number }
@@ -281,7 +313,7 @@ const LinePlot = ({
       <svg ref={svgRef}></svg>
       <div
         id="line-tooltip"
-        className="absolute box-border w-40 rounded border bg-gray-50 p-1"
+        className="absolute box-border hidden w-40 rounded border bg-gray-50 p-1"
       ></div>
     </div>
   )
