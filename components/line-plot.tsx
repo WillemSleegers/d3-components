@@ -1,8 +1,13 @@
 import * as d3 from "d3"
 import { useRef, useEffect, useState, MouseEvent } from "react"
 
+type Datum = {
+  x: number
+  y: number
+}
+
 type LinePlotProps = {
-  data: { x: number; y: number }[]
+  data: Datum[]
   containerWidth?: number | string
   containerHeight?: number
   marginTop?: number
@@ -24,27 +29,12 @@ const LinePlot = ({
   const svgRef = useRef<SVGSVGElement>(null)
 
   const [animate, setAnimate] = useState(true)
-  const [width, setWidth] = useState<number | undefined>(0)
-  const [height, setHeight] = useState<number | undefined>(0)
+  const [width, setWidth] = useState(0)
+  const [height, setHeight] = useState(0)
 
   const drawGraph = () => {
-    const valuesX = data.map((datum) => datum.x)
-    const domainX = d3.extent(valuesX) as number[]
-
-    const valuesY = data.map((datum) => datum.y)
-    const domainY = d3.extent(valuesY) as number[]
-
     if (width && height) {
-      const x = d3
-        .scaleLinear()
-        .domain(domainX)
-        .range([marginLeft, width - marginRight])
-
-      const y = d3
-        .scaleLinear()
-        .domain(domainY)
-        .range([height - marginBottom, marginTop])
-
+      // Clear the graph
       d3.select(svgRef.current).selectAll("*").remove()
 
       if (svgRef.current) {
@@ -54,6 +44,22 @@ const LinePlot = ({
         svg.attr("width", width).attr("height", height)
 
         // Set axes
+        const valuesX = data.map((d) => d.x)
+        const domainX = d3.extent(valuesX) as [number, number]
+
+        const valuesY = data.map((d) => d.y)
+        const domainY = d3.extent(valuesY) as [number, number]
+
+        const x = d3
+          .scaleLinear()
+          .domain(domainX)
+          .range([marginLeft, width - marginRight])
+
+        const y = d3
+          .scaleLinear()
+          .domain(domainY)
+          .range([height - marginBottom, marginTop])
+
         const xAxis = d3.axisBottom(x)
         const yAxis = d3.axisLeft(y)
 
@@ -69,7 +75,7 @@ const LinePlot = ({
           .attr("class", "y-axis")
           .attr("transform", `translate(${marginLeft}, 0)`)
 
-        // Create the grid.
+        // Create the grid
         svg
           .append("g")
           .attr("stroke", "currentColor")
@@ -80,8 +86,8 @@ const LinePlot = ({
               .selectAll("line")
               .data(x.ticks())
               .join("line")
-              .attr("x1", (d) => 0.5 + x(d))
-              .attr("x2", (d) => 0.5 + x(d))
+              .attr("x1", (d) => x(d))
+              .attr("x2", (d) => x(d))
               .attr("y1", marginTop)
               .attr("y2", height - marginBottom),
           )
@@ -91,8 +97,8 @@ const LinePlot = ({
               .selectAll("line")
               .data(y.ticks())
               .join("line")
-              .attr("y1", (d) => 0.5 + y(d))
-              .attr("y2", (d) => 0.5 + y(d))
+              .attr("y1", (d) => y(d))
+              .attr("y2", (d) => y(d))
               .attr("x1", marginLeft)
               .attr("x2", width - marginRight),
           )
@@ -110,10 +116,8 @@ const LinePlot = ({
           .attr("d", (d) => lineGenerator(d))
           .attr("fill", "none")
 
-        // Add tooltip
+        // Add circles (with tooltip)
         const tooltipDiv = d3.select("#line-tooltip")
-
-        // Add circles
         const circles = svg
           .append("g")
           .selectAll("dot")
@@ -124,7 +128,7 @@ const LinePlot = ({
           .call(tooltip, tooltipDiv)
 
         // Add crosshairs
-        svg.on("mousemove.crosshair", () => {
+        svg.on("mousemove.crosshair", (event: MouseEvent) => {
           const [mouseX, mouseY] = d3.pointer(event)
 
           // Remove lines
@@ -171,8 +175,8 @@ const LinePlot = ({
             circles
               .attr("r", 0)
               .transition()
-              .duration(250)
-              .delay((d, i) => i * 20)
+              .duration(1000)
+              //.delay((_d, i) => i ^ 2)
               .attr("r", 2)
               .on("end", () => {
                 line
@@ -180,7 +184,7 @@ const LinePlot = ({
                   .attr("stroke-dasharray", pathLength + " " + pathLength)
                   .attr("stroke-dashoffset", pathLength)
                   .transition()
-                  .duration(1500)
+                  .duration(1000)
                   .attr("stroke-dashoffset", 0)
               })
 
@@ -194,109 +198,92 @@ const LinePlot = ({
     }
   }
 
-  const getContainerSize = () => {
+  const tooltip = (
+    selectionGroup: d3.Selection<
+      d3.BaseType | SVGCircleElement,
+      Datum,
+      SVGGElement,
+      unknown
+    >,
+    tooltipDiv: d3.Selection<d3.BaseType, unknown, d3.BaseType, unknown>,
+  ) => {
+    const showTooltip = () => {
+      tooltipDiv.style("display", "block")
+    }
+
+    const setContents = (
+      d: Datum,
+      tooltipDiv: d3.Selection<d3.BaseType, unknown, d3.BaseType, unknown>,
+    ) => {
+      tooltipDiv
+        .selectAll("p")
+        .data(Object.entries(d))
+        .join("p")
+        .filter(([_key, value]) => value !== null && value !== undefined)
+        .html(([key, value]) => `<strong>${key}</strong>: ` + value)
+    }
+
+    const handleMouseover = (_event: MouseEvent, d: unknown) => {
+      showTooltip()
+      setContents(d as Datum, tooltipDiv)
+    }
+
+    const setPosition = (mouseX: number, mouseY: number) => {
+      const OFFSET = 8
+
+      tooltipDiv
+        .style("top", mouseY < height / 2 ? `${mouseY + OFFSET}px` : "initial")
+        .style(
+          "right",
+          mouseX > width / 2
+            ? `${width - mouseX - marginLeft + OFFSET}px`
+            : "initial",
+        )
+        .style(
+          "bottom",
+          mouseY > height / 2 ? `${height - mouseY + OFFSET}px` : "initial",
+        )
+        .style(
+          "left",
+          mouseX < width / 2 ? `${mouseX + OFFSET + marginLeft}px` : "initial",
+        )
+    }
+
+    const handleMousemove = (event: MouseEvent) => {
+      const [mouseX, mouseY] = d3.pointer(event)
+      setPosition(mouseX - marginLeft, mouseY)
+    }
+
+    const hideTooltip = () => {
+      tooltipDiv.style("display", "none")
+    }
+
+    const handleMouseleave = () => {
+      hideTooltip()
+    }
+
+    selectionGroup.each((_d, i, nodes) => {
+      d3.select(nodes[i])
+        .on("mouseover.tooltip", handleMouseover)
+        .on("mousemove.tooltip", handleMousemove)
+        .on("mouseleave.tooltip", handleMouseleave)
+    })
+  }
+
+  const setSize = () => {
     if (parentRef.current) {
       setWidth(parentRef.current.offsetWidth)
       setHeight(parentRef.current.offsetHeight)
     }
   }
 
-  const tooltip = (
-    selectionGroup: d3.Selection<
-      d3.BaseType | SVGCircleElement,
-      {
-        x: number
-        y: number
-      },
-      SVGGElement,
-      unknown
-    >,
-    tooltipDiv: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
-  ) => {
-    selectionGroup.each((_d, i, nodes) => {
-      d3.select(nodes[i])
-        .on("mouseover.tooltip", () => {
-          console.log("tooltip mouseover")
-          showTooltip()
-
-          const datum = d3.select(nodes[i]).datum() as { x: number; y: number }
-          setContents(datum, tooltipDiv)
-        })
-        .on("mousemove.tooltip", handleMousemove)
-        .on("mouseleave.tooltip", handleMouseleave)
-    })
-
-    function handleMousemove(event: MouseEvent) {
-      const [mouseX, mouseY] = d3.pointer(event)
-      setPosition(mouseX - marginLeft, mouseY)
-    }
-
-    function handleMouseleave() {
-      hideTooltip()
-    }
-
-    function showTooltip() {
-      tooltipDiv.style("display", "block")
-    }
-
-    function hideTooltip() {
-      tooltipDiv.style("display", "none")
-    }
-
-    function setPosition(mouseX: number, mouseY: number) {
-      const MOUSE_POS_OFFSET = 8
-
-      if (height && width) {
-        tooltipDiv
-          .style(
-            "top",
-            mouseY < height / 2 ? `${mouseY + MOUSE_POS_OFFSET}px` : "initial",
-          )
-          .style(
-            "right",
-            mouseX > width / 2
-              ? `${width - mouseX - marginLeft + MOUSE_POS_OFFSET}px`
-              : "initial",
-          )
-          .style(
-            "bottom",
-            mouseY > height / 2
-              ? `${height - mouseY + MOUSE_POS_OFFSET}px`
-              : "initial",
-          )
-          .style(
-            "left",
-            mouseX < width / 2
-              ? `${mouseX + MOUSE_POS_OFFSET + marginLeft}px`
-              : "initial",
-          )
-      }
-    }
-  }
-
-  function setContents(
-    datum: { x: number; y: number },
-    tooltipDiv: d3.Selection<d3.BaseType, unknown, d3.BaseType, unknown>,
-  ) {
-    tooltipDiv
-      .selectAll("p")
-      .data(Object.entries(datum))
-      .join("p")
-      .filter(([key, value]) => value !== null && value !== undefined)
-      .html(([key, value]) => `<strong>${key}</strong>: ` + value)
-  }
-
   useEffect(() => {
-    getContainerSize()
+    setSize()
 
-    const handleResize = () => {
-      getContainerSize()
-    }
-
-    window.addEventListener("resize", handleResize)
+    window.addEventListener("resize", setSize)
 
     return () => {
-      window.removeEventListener("resize", handleResize)
+      window.removeEventListener("resize", setSize)
     }
   }, [])
 
