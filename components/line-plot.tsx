@@ -14,6 +14,8 @@ type LinePlotProps = {
   marginRight?: number
   marginBottom?: number
   marginLeft?: number
+  showTooltip?: boolean
+  showCrosshairs?: boolean
 }
 
 const LinePlot = ({
@@ -24,6 +26,8 @@ const LinePlot = ({
   marginRight = 20,
   marginBottom = 30,
   marginLeft = 100,
+  showTooltip = true,
+  showCrosshairs = true,
 }: LinePlotProps) => {
   const parentRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -37,6 +41,7 @@ const LinePlot = ({
       // Clear the graph
       d3.select(svgRef.current).selectAll("*").remove()
 
+      // Build the graph
       if (svgRef.current) {
         const svg = d3.select(svgRef.current)
 
@@ -116,8 +121,7 @@ const LinePlot = ({
           .attr("d", (d) => lineGenerator(d))
           .attr("fill", "none")
 
-        // Add circles (with tooltip)
-        const tooltipDiv = d3.select("#line-tooltip")
+        // Add circles
         const circles = svg
           .append("g")
           .selectAll("dot")
@@ -125,46 +129,52 @@ const LinePlot = ({
           .join("circle")
           .attr("cx", (d) => x(d.x))
           .attr("cy", (d) => y(d.y))
-          .call(tooltip, tooltipDiv)
+
+        // Add tooltip
+        if (showTooltip) {
+          const tooltipDiv = d3.select("#line-tooltip")
+          circles.call(tooltip, tooltipDiv)
+        }
 
         // Add crosshairs
-        svg.on("mousemove.crosshair", (event: MouseEvent) => {
-          const [mouseX, mouseY] = d3.pointer(event)
+        if (showCrosshairs) {
+          svg.on("mousemove.crosshair", (event: MouseEvent) => {
+            const [mouseX, mouseY] = d3.pointer(event)
 
-          // Remove lines
-          svg.select(".crosshair-x").remove()
-          svg.select(".crosshair-y").remove()
+            // Remove lines
+            svg.select(".crosshair-x").remove()
+            svg.select(".crosshair-y").remove()
 
-          if (
-            mouseX > marginLeft &&
-            mouseX < width - marginRight &&
-            mouseY > marginTop &&
-            mouseY < height - marginBottom
-          ) {
-            // Add lines
-            svg
-              .append("line")
-              .style("stroke", "black")
-              .attr("stroke-opacity", 0.1)
-              .lower() // Make sure the line appears below other elements
-              .attr("class", "crosshair-x")
-              .attr("y1", 0 + marginTop)
-              .attr("y2", height - marginBottom)
-              .attr("x1", mouseX)
-              .attr("x2", mouseX)
+            if (
+              mouseX > marginLeft &&
+              mouseX < width - marginRight &&
+              mouseY > marginTop &&
+              mouseY < height - marginBottom
+            ) {
+              svg
+                .append("line")
+                .style("stroke", "black")
+                .attr("stroke-opacity", 0.1)
+                .lower() // Make sure the line appears below other elements
+                .attr("class", "crosshair-x")
+                .attr("y1", 0 + marginTop)
+                .attr("y2", height - marginBottom)
+                .attr("x1", mouseX)
+                .attr("x2", mouseX)
 
-            svg
-              .append("line")
-              .style("stroke", "black")
-              .attr("stroke-opacity", 0.1)
-              .lower() // Make sure the line appears below other elements
-              .attr("class", "crosshair-y")
-              .attr("y1", mouseY)
-              .attr("y2", mouseY)
-              .attr("x1", 0 + marginLeft)
-              .attr("x2", width - marginRight)
-          }
-        })
+              svg
+                .append("line")
+                .style("stroke", "black")
+                .attr("stroke-opacity", 0.1)
+                .lower() // Make sure the line appears below other elements
+                .attr("class", "crosshair-y")
+                .attr("y1", mouseY)
+                .attr("y2", mouseY)
+                .attr("x1", 0 + marginLeft)
+                .attr("x2", width - marginRight)
+            }
+          })
+        }
 
         if (animate) {
           const lineNode = line.node()
@@ -172,21 +182,38 @@ const LinePlot = ({
           if (lineNode instanceof SVGPathElement) {
             const pathLength = lineNode.getTotalLength()
 
-            circles
-              .attr("r", 0)
+            line
+              .attr("stroke", "black")
+              .attr("stroke-dasharray", pathLength + " " + pathLength)
+              .attr("stroke-dashoffset", pathLength)
               .transition()
+              .ease(d3.easeCubicOut)
               .duration(1000)
-              //.delay((_d, i) => i ^ 2)
-              .attr("r", 2)
+              .attr("stroke-dashoffset", 0)
               .on("end", () => {
-                line
-                  .attr("stroke", "black")
-                  .attr("stroke-dasharray", pathLength + " " + pathLength)
-                  .attr("stroke-dashoffset", pathLength)
+                circles
+                  .attr("r", 0)
                   .transition()
-                  .duration(1000)
-                  .attr("stroke-dashoffset", 0)
+                  .ease(d3.easeCubicInOut)
+                  .duration(500)
+                  .attr("r", 2)
               })
+
+            // circles
+            //   .attr("r", 0)
+            //   .transition()
+            //   .duration(1000)
+            //   .delay((_d, i) => i ^ 2)
+            //   .attr("r", 2)
+            //   .on("end", () => {
+            //     line
+            //       .attr("stroke", "black")
+            //       .attr("stroke-dasharray", pathLength + " " + pathLength)
+            //       .attr("stroke-dashoffset", pathLength)
+            //       .transition()
+            //       .duration(1000)
+            //       .attr("stroke-dashoffset", 0)
+            //   })
 
             setAnimate(false)
           }
